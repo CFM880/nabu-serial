@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+[Unit]
+Description=USB CDC-ACM kernel console gadget
+Documentation=file:///usr/local/share/doc/nabu-debian/USB-CONSOLE.md
+DefaultDependencies=no
+After=sysinit.target
+Before=multi-user.target
+ConditionPathExists=/sys/class/udc
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/nabu-usb-console.sh
+
+[Install]
+WantedBy=multi-user.target
