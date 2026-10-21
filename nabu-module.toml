@@ -6,15 +6,14 @@ description = "USB CDC-ACM serial debug console (configfs gadget + kernel consol
 requires    = []
 
 [provides]
-overlay   = "kernel-overlay"
 config    = ["config/nabu-serial.config"]
 systemd   = ["system/nabu-usb-console.service"]
 userspace = ["libexec/nabu-usb-console.sh"]
 
-# Userspace builds the gadget (libexec/nabu-usb-console.sh) and the consumer's
-# kernel command line carries "console=ttyGS0", which is what routes printk to
-# the gadget.  The overlay exists only to enlarge the console fifo
-# (GS_CONSOLE_BUF_SIZE) so a full WARN dump survives the USB pipe.
+# No kernel tree of its own: the configfs ACM function is enough, userspace
+# builds the gadget (libexec/nabu-usb-console.sh).  The kernel command line of
+# the consumer (debian/config/debian.cmdline carries "console=ttyGS0") is what
+# routes printk to the gadget.
 
 [install]
 "systemd/nabu-usb-console.service" = "/etc/systemd/system/nabu-usb-console.service"
