@@ -1050,6 +1050,38 @@ static void gs_console_disconnect(struct gs_port *port)
 	gs_free_req(ep, req);
 }
 
+/*
+ * Nabu: the console buffer has to absorb everything printed while no host is
+ * reading the port: the whole boot log before the gadget enumerates (the host
+ * only opens /dev/ttyACM0 seconds later), or a WARN dump while the gadget is
+ * disconnected during suspend.  8 KiB was nowhere near that and the tail of
+ * every trace was replaced by "[missed N bytes]".
+ *
+ * Allocate as much as the allocator will give us, largest first.  kfifo_init()
+ * on a kzalloc'ed buffer keeps kfifo_free() valid, so the teardown path does
+ * not need to know which size was used.
+ */
+static int gs_console_alloc_buf(struct gs_console *cons)
+{
+	static const unsigned int sizes[] = { 1 << 20, 1 << 18, 1 << 16, 8192 };
+	void *buf;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(sizes); i++) {
+		buf = kzalloc(sizes[i], GFP_KERNEL);
+		if (!buf)
+			continue;
+		if (!kfifo_init(&cons->buf, buf, sizes[i])) {
+			pr_info("ttyGS: console buffer is %u KiB\n",
+				sizes[i] >> 10);
+			return 0;
+		}
+		kfree(buf);
+	}
+
+	return -ENOMEM;
+}
+
 static int gs_console_init(struct gs_port *port)
 {
 	struct gs_console *cons;
@@ -1071,7 +1103,7 @@ static int gs_console_init(struct gs_port *port)
 	INIT_WORK(&cons->work, gs_console_work);
 	spin_lock_init(&cons->lock);
 
-	err = kfifo_alloc(&cons->buf, GS_CONSOLE_BUF_SIZE, GFP_KERNEL);
+	err = gs_console_alloc_buf(cons);
 	if (err) {
 		pr_err("ttyGS%d: allocate console buffer failed\n", port->port_num);
 		kfree(cons);
@@ -1168,6 +1200,17 @@ static void gs_console_disconnect(struct gs_port *port)
 {
 }
 
+/*
+ * Nabu: the console buffer has to absorb everything printed while no host is
+ * reading the port: the whole boot log before the gadget enumerates (the host
+ * only opens /dev/ttyACM0 seconds later), or a WARN dump while the gadget is
+ * disconnected during suspend.  8 KiB was nowhere near that and the tail of
+ * every trace was replaced by "[missed N bytes]".
+ *
+ * Allocate as much as the allocator will give us, largest first.  kfifo_init()
+ * on a kzalloc'ed buffer keeps kfifo_free() valid, so the teardown path does
+ * not need to know which size was used.
+ */
 static int gs_console_init(struct gs_port *port)
 {
 	return -ENOSYS;
